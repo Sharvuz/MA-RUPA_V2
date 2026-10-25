@@ -58,8 +58,8 @@ def test(model, testdataloader, maxlen, prompt_text, gt, gtsegments, gtlabels,
     ap_hier_list = []
 
     smooth_eval = getattr(args, 'smooth_eval', True)
-    smooth_method = getattr(args, 'smooth_method', 'gaussian')
-    smooth_sigma = getattr(args, 'smooth_sigma', 1.5)
+    smooth_method = getattr(args, 'smooth_method', 'ucf')
+    smooth_sigma = getattr(args, 'smooth_sigma', 1.0)
 
     with torch.no_grad():
         for i, item in enumerate(testdataloader):

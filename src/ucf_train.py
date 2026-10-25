@@ -19,6 +19,18 @@ from model import MARUPA, load_compatible_model_state
 from ucf_test import test
 from utils.dataset import UCFDataset
 from utils.tools import get_batch_label, get_prompt_text, safe_load_checkpoint
+from utils.losses import (
+    compute_stochastic_topk_mil_loss,
+    compute_shock_tv_loss,
+    compute_haar_wavelet_loss,
+    compute_geodesic_halo_loss,
+    compute_clasm_loss,
+    compute_bkg_loss,
+    compute_consistency_loss,
+    compute_event_loss,
+    compute_residual_event_loss,
+    compute_normal_contrastive_loss,
+)
 import ucf_option
 
 
@@ -269,12 +281,17 @@ def train(args):
     for epoch in range(start_epoch, args.max_epoch):
         model.train()
         epoch_idx = epoch + 1
-        # Curriculum ramp-up factor: omega(e) = min(1.0, e / curriculum_epochs)
-        omega = min(1.0, float(epoch_idx) / float(args.curriculum_epochs))
+        # Smooth Cosine Curriculum Schedule capped strictly at omega_max = 0.35
+        curriculum_eps = float(getattr(args, 'curriculum_epochs', 5.0))
+        if epoch_idx <= curriculum_eps:
+            progress = (epoch_idx - 1) / max(1.0, curriculum_eps - 1)
+            omega = 0.05 + 0.30 * 0.5 * (1.0 - math.cos(math.pi * progress))
+        else:
+            omega = 0.35
 
         loss_accum = {
             'mil': 0.0, 'aux': 0.0, 'clasm': 0.0, 'bkg': 0.0, 'consist': 0.0,
-            'smooth': 0.0, 'gather': 0.0, 'orth': 0.0, 'residual': 0.0, 'gate': 0.0, 'total': 0.0
+            'shock': 0.0, 'wavelet': 0.0, 'halo': 0.0, 'orth': 0.0, 'residual': 0.0, 'total': 0.0
         }
 
         normal_iter = iter(normal_loader)
@@ -310,15 +327,32 @@ def train(args):
             p_routing = dnp_dict['routing_scores']
             s_aux = dnp_dict['aux_scores']
             s_det = dnp_dict['detector_scores']
+            orig_features = dnp_dict.get('original_features', visual_batch)
 
-            # 1. Primary & Auxiliary MIL Losses
+            # 1. Primary & Auxiliary MIL Losses with Stochastic Peak-Drop
             topk_r = getattr(args, 'topk_ratio', 8)
             lbl_sm = getattr(args, 'label_smoothing', 0.02)
-            loss_mil_routing = compute_topk_mil_loss(p_routing, binary_labels, lengths_batch, device, topk_ratio=topk_r, label_smoothing=lbl_sm).mean()
-            loss_mil_aux = compute_topk_mil_loss(s_aux, binary_labels, lengths_batch, device, topk_ratio=topk_r, label_smoothing=lbl_sm).mean()
-            loss_mil_det = compute_topk_mil_loss(s_det, binary_labels, lengths_batch, device, topk_ratio=topk_r, label_smoothing=lbl_sm).mean()
+            loss_mil_routing = compute_stochastic_topk_mil_loss(
+                p_routing, binary_labels, lengths_batch, device,
+                topk_ratio=topk_r, label_smoothing=lbl_sm, training=True, p_drop=0.30, drop_ratio=0.20
+            ).mean()
+            loss_mil_aux = compute_stochastic_topk_mil_loss(
+                s_aux, binary_labels, lengths_batch, device,
+                topk_ratio=topk_r, label_smoothing=lbl_sm, training=True, p_drop=0.30, drop_ratio=0.20
+            ).mean()
+            loss_mil_det = compute_stochastic_topk_mil_loss(
+                s_det, binary_labels, lengths_batch, device,
+                topk_ratio=topk_r, label_smoothing=lbl_sm, training=True, p_drop=0.30, drop_ratio=0.20
+            ).mean()
 
-            # 2. Multi-class Semantic Alignment & Consistency Losses
+            # 2. Perona-Malik Shock-Preserving Smoothness (lambda=0.002) & 1D Haar Wavelet Contrast (lambda=0.03)
+            loss_shock = compute_shock_tv_loss(p_routing, orig_features, lengths_batch).mean()
+            loss_wavelet = compute_haar_wavelet_loss(p_routing, binary_labels, lengths_batch).mean()
+
+            # 3. One-Sided Geodesic Halo Expansion Loss (lambda=0.12)
+            loss_halo = compute_geodesic_halo_loss(p_routing, orig_features, binary_labels, lengths_batch).mean()
+
+            # 4. Multi-class Semantic Alignment & Consistency Losses
             loss_clasm = compute_clasm_loss(logits2, one_hot_labels, lengths_batch, device).mean()
             loss_bkg = compute_bkg_loss(logits4, device, num_classes=len(prompt_text)).mean()
 
@@ -332,10 +366,7 @@ def train(args):
             loss_event = compute_event_loss(logits3, one_hot_labels, device).mean()
             loss_dnp_normal = dnp_dict.get('dnp_normal_loss', torch.tensor(0.0, device=device)).mean()
 
-            # 3. Temporal Smoothness & Sparsity
-            loss_smooth = compute_temporal_smoothness_loss(p_routing, lengths_batch).mean()
-
-            # 4. RUPA Prototype Losses (modulated by curriculum ramp-up omega(e))
+            # 5. RUPA Prototype Losses (modulated by curriculum ramp-up omega(e) <= 0.35)
             loss_gather = dnp_dict.get('g_loss', torch.tensor(0.0, device=device)).mean()
             loss_orth = dnp_dict.get('orth_loss', torch.tensor(0.0, device=device)).mean()
 
@@ -359,10 +390,12 @@ def train(args):
                 loss_mil_routing
                 + 0.5 * loss_mil_det
                 + args.lambda_aux * loss_mil_aux
+                + 0.002 * loss_shock
+                + 0.03 * loss_wavelet
+                + 0.12 * loss_halo
                 + getattr(args, 'loss2_weight', 1.0) * loss_clasm
                 + getattr(args, 'lambda_bkg', 0.5) * loss_bkg
                 + getattr(args, 'lambda_consistency', 1.0) * loss_consistency
-                + args.lambda_smooth * loss_smooth
                 + 0.1 * loss_text_orth
                 + omega * (
                     args.lambda_gather * loss_gather
@@ -389,11 +422,11 @@ def train(args):
             loss_accum['clasm'] += loss_clasm.item()
             loss_accum['bkg'] += loss_bkg.item()
             loss_accum['consist'] += loss_consistency.item()
-            loss_accum['smooth'] += loss_smooth.item()
-            loss_accum['gather'] += loss_gather.item()
+            loss_accum['shock'] += loss_shock.item()
+            loss_accum['wavelet'] += loss_wavelet.item()
+            loss_accum['halo'] += loss_halo.item()
             loss_accum['orth'] += loss_orth.item()
             loss_accum['residual'] += loss_residual.item()
-            loss_accum['gate'] += loss_gate.item()
             loss_accum['total'] += total_loss.item()
 
             total_batches = min(len(normal_loader), len(anomaly_loader))

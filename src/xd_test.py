@@ -58,7 +58,7 @@ def test(model, testdataloader, maxlen, prompt_text, gt, gtsegments, gtlabels,
     ap_hier_list = []
 
     smooth_eval = getattr(args, 'smooth_eval', True)
-    smooth_method = getattr(args, 'smooth_method', 'gaussian')
+    smooth_method = getattr(args, 'smooth_method', 'xd')
     smooth_sigma = getattr(args, 'smooth_sigma', 1.5)
 
     with torch.no_grad():

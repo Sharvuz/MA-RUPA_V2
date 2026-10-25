@@ -10,7 +10,7 @@
 - **Mục tiêu Benchmark (Chuẩn đầu ra tạp chí Q1 / KLTN xuất sắc):**
   - **UCF-Crime:** Đạt Frame-level ROC-AUC $\ge 89.0\% - 90.0\%$.
   - **XD-Violence:** Đạt Frame-level Average Precision (AP) $\ge 86.0\% - 87.5\%$ (với Batch Size = 96 trên Dual GPU T4x2).
-- **GitHub Repository:** `https://github.com/Sharvuz/MA-RUPA.git` (Branch: `main`).
+- **GitHub Repository:** `https://github.com/Sharvuz/MA-RUPA_V2.git` (Branch: `main`).
 - **Môi trường huấn luyện:** Kaggle GPU Dual Tesla T4 (T4x2 - $2 \times 15$ GB VRAM).
 - **Môi trường phát triển cục bộ:** Windows 11, Python 3.10+ Virtual Environment (`.venv`), PyTorch CUDA.
 
