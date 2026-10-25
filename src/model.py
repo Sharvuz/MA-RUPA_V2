@@ -273,7 +273,7 @@ class MDTBackbone(nn.Module):
 # ============================================================================
 
 class PACBridge(nn.Module):
-    """CLIP-Grounded Acoustic Semantic Bridge (PACBridge).
+    r"""CLIP-Grounded Acoustic Semantic Bridge (PACBridge).
     
     Breakthrough 1.3:
     1. Projects 128-D VGGish (or 512-D) audio to 512-D \tilde{A} using a 2-layer Conv1D (k=3, GELU, LayerNorm) + Linear adapter.

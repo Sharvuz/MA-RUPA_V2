@@ -291,7 +291,8 @@ def train(args):
 
         loss_accum = {
             'mil': 0.0, 'aux': 0.0, 'clasm': 0.0, 'bkg': 0.0, 'consist': 0.0,
-            'shock': 0.0, 'wavelet': 0.0, 'halo': 0.0, 'orth': 0.0, 'residual': 0.0, 'total': 0.0
+            'shock': 0.0, 'wavelet': 0.0, 'halo': 0.0, 'orth': 0.0, 'residual': 0.0,
+            'gather': 0.0, 'total': 0.0
         }
 
         normal_iter = iter(normal_loader)
@@ -427,6 +428,7 @@ def train(args):
             loss_accum['halo'] += loss_halo.item()
             loss_accum['orth'] += loss_orth.item()
             loss_accum['residual'] += loss_residual.item()
+            loss_accum['gather'] += loss_gather.item()
             loss_accum['total'] += total_loss.item()
 
             total_batches = min(len(normal_loader), len(anomaly_loader))
@@ -443,10 +445,14 @@ def train(args):
         avg_clasm = loss_accum['clasm'] / iters_per_epoch
         avg_consist = loss_accum['consist'] / iters_per_epoch
         avg_aux = loss_accum['aux'] / iters_per_epoch
-        avg_gather = loss_accum['gather'] / iters_per_epoch
+        avg_gather = loss_accum.get('gather', 0.0) / iters_per_epoch
+        avg_shock = loss_accum.get('shock', 0.0) / iters_per_epoch
+        avg_wavelet = loss_accum.get('wavelet', 0.0) / iters_per_epoch
+        avg_halo = loss_accum.get('halo', 0.0) / iters_per_epoch
+        avg_orth = loss_accum.get('orth', 0.0) / iters_per_epoch
 
         print(f"\n--- Epoch {epoch_idx}/{args.max_epoch} Summary ---")
-        print(f"Loss Total: {avg_total:.4f} | MIL: {avg_mil:.4f} | CLASM: {avg_clasm:.4f} | Consist: {avg_consist:.4f} | Aux: {avg_aux:.4f} | Gather: {avg_gather:.4f} | Omega: {omega:.2f}")
+        print(f"Loss Total: {avg_total:.4f} | MIL: {avg_mil:.4f} | CLASM: {avg_clasm:.4f} | Consist: {avg_consist:.4f} | Aux: {avg_aux:.4f} | Gather: {avg_gather:.4f} | Shock: {avg_shock:.4f} | Wave: {avg_wavelet:.4f} | Halo: {avg_halo:.4f} | Orth: {avg_orth:.4f} | Omega: {omega:.2f}")
 
         # Evaluate on Test Set
         eval_model = model.module if hasattr(model, 'module') else model
