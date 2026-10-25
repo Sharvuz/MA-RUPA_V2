@@ -781,6 +781,7 @@ class DEMRouter(nn.Module):
         super().__init__()
         self.dataset_type = dataset_type.lower()
         self.no_safegate = no_safegate
+        self.custom_prior_weights = custom_prior_weights
 
         # MLP Gate: takes [S_anchor, S_refine, |S_refine - S_anchor|, rho_max]
         self.mlp_gate = nn.Sequential(
@@ -820,10 +821,16 @@ class DEMRouter(nn.Module):
         device = s_det.device
 
         # 1. Primary Anchor Stream S_{anchor}
-        if 'xd' in self.dataset_type:
+        if self.custom_prior_weights is not None and len(self.custom_prior_weights) >= 2:
+            w0 = float(self.custom_prior_weights[0])
+            w1 = float(self.custom_prior_weights[1])
+            s_anchor = w0 * s_det + w1 * s_sem_base
+        elif 'xd' in self.dataset_type:
             s_anchor = 0.35 * s_det + 0.65 * s_sem_base
         else:
-            s_anchor = 0.55 * s_det + 0.45 * s_sem_base
+            # UCF-Crime: Detector is the primary high-precision signal (85.7% AUC, 30.3% AP).
+            # Avoid dragging anchor down with low-resolution CCTV semantic domain gap.
+            s_anchor = 0.85 * s_det + 0.15 * s_sem_base
 
         if self.no_safegate:
             return s_anchor, torch.zeros_like(s_det), s_anchor

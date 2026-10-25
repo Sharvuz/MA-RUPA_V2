@@ -281,13 +281,11 @@ def train(args):
     for epoch in range(start_epoch, args.max_epoch):
         model.train()
         epoch_idx = epoch + 1
-        # Smooth Cosine Curriculum Schedule capped strictly at omega_max = 0.35
-        curriculum_eps = float(getattr(args, 'curriculum_epochs', 5.0))
-        if epoch_idx <= curriculum_eps:
-            progress = (epoch_idx - 1) / max(1.0, curriculum_eps - 1)
-            omega = 0.05 + 0.30 * 0.5 * (1.0 - math.cos(math.pi * progress))
-        else:
-            omega = 0.35
+        # Smooth Cosine Curriculum Schedule ramping up to omega_max (default 1.0)
+        omega_max = float(getattr(args, 'omega_max', 1.0))
+        omega_min = float(getattr(args, 'omega_min', 0.05))
+        progress = epoch / max(1.0, float(args.max_epoch - 1))
+        omega = omega_min + (omega_max - omega_min) * 0.5 * (1.0 - math.cos(math.pi * progress))
 
         loss_accum = {
             'mil': 0.0, 'aux': 0.0, 'clasm': 0.0, 'bkg': 0.0, 'consist': 0.0,

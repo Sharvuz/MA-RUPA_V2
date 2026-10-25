@@ -65,6 +65,8 @@ parser.add_argument('--batch-size', default=96, type=int, help='Batch size for t
 parser.add_argument('--lr', type=float, default=1.2e-4, help='Learning rate for End-to-End AdamW optimizer')
 parser.add_argument('--weight-decay', type=float, default=1e-4, help='Weight decay for regularization')
 parser.add_argument('--curriculum-epochs', type=float, default=3.0, help='Epochs to ramp up RUPA losses: omega(e) = min(1, e/curriculum_epochs)')
+parser.add_argument('--omega-min', type=float, default=0.05, help='Initial minimum weight for prototype curriculum (default 0.05)')
+parser.add_argument('--omega-max', type=float, default=1.0, help='Maximum weight for prototype curriculum (default 1.0)')
 parser.add_argument('--topk-ratio', type=int, default=16, help='Divisor for top-k snippet selection: k = max(1, L // topk_ratio)')
 parser.add_argument('--label-smoothing', type=float, default=0.02, help='Label smoothing factor for binary MIL loss')
 

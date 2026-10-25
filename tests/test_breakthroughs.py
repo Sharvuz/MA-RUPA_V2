@@ -189,7 +189,7 @@ def test_dem_router_quarantine():
     # Test UCF mode anchor
     router_ucf = DEMRouter(dataset_type='ucf', hidden_dim=16)
     _, _, s_anchor_ucf = router_ucf(s_det, s_rec_noisy, s_sem_noisy, s_aux_noisy, s_sem_base=s_sem_base)
-    expected_anchor_ucf = 0.55 * 0.70 + 0.45 * 0.80  # 0.385 + 0.36 = 0.745
+    expected_anchor_ucf = 0.85 * 0.70 + 0.15 * 0.80  # 0.595 + 0.120 = 0.715
     assert torch.allclose(s_anchor_ucf, torch.tensor(expected_anchor_ucf), atol=1e-4)
     
     print(f"  DEM-Router passed! Anchor XD: {s_anchor[0, 0, 0].item():.4f}, Max diff: {diff_from_anchor:.4f}")
